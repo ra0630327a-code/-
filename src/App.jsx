@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Plus, Trash2, Dumbbell, Calendar, ChevronDown, ChevronUp, X, TrendingUp, BarChart3, ListChecks } from "lucide-react";
+import { Plus, Trash2, Dumbbell, Calendar, ChevronDown, ChevronUp, X, TrendingUp, BarChart3, ListChecks, Download } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 const STORAGE_KEY = "workout_logs_v1";
@@ -33,6 +33,29 @@ function saveExercises(list) {
 function todayStr() {
   const d = new Date();
   return d.toISOString().slice(0, 10);
+}
+
+function csvEscape(value) {
+  const s = String(value ?? "");
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function exportLogsToCsv(logs) {
+  const header = ["日付", "種目", "重量(kg)", "回数", "セット", "総量(kg)"];
+  const rows = [...logs]
+    .sort((a, b) => (a.date === b.date ? a.createdAt - b.createdAt : a.date < b.date ? -1 : 1))
+    .map((l) => [l.date, l.exercise, l.weight, l.reps, l.sets, l.weight * l.reps * l.sets]);
+  const csv = [header, ...rows].map((r) => r.map(csvEscape).join(",")).join("\r\n");
+  // Excelで文字化けしないようBOM付きUTF-8
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `workout_${todayStr()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 const WEIGHT_OPTIONS = Array.from({ length: 97 }, (_, i) => Math.round(i * 2.5 * 10) / 10); // 0 - 240kg, 2.5刻み
@@ -247,10 +270,20 @@ export default function WorkoutApp() {
     <div className="min-h-screen bg-stone-50 text-stone-900 pb-8">
       {/* ヘッダー */}
       <header className="bg-white border-b border-stone-200 px-4 py-4 sticky top-0 z-10">
-        <h1 className="text-lg font-bold flex items-center gap-2 text-stone-800 mb-3">
-          <Dumbbell className="w-5 h-5 text-emerald-700" />
-          トレーニング記録
-        </h1>
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-lg font-bold flex items-center gap-2 text-stone-800">
+            <Dumbbell className="w-5 h-5 text-emerald-700" />
+            トレーニング記録
+          </h1>
+          <button
+            onClick={() => exportLogsToCsv(logs)}
+            disabled={logs.length === 0}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-stone-200 text-stone-600 hover:bg-stone-50 disabled:opacity-40"
+          >
+            <Download className="w-4 h-4" />
+            CSV
+          </button>
+        </div>
         <div className="flex gap-2">
           <button
             onClick={() => setView("log")}
